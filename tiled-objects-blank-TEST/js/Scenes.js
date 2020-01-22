@@ -26,14 +26,14 @@ class BaseScene extends Phaser.Scene {
         this.map.createStaticLayer('background2', [this.map.landscape, this.map.props], 0, 0);
         this.map.createStaticLayer('platforms', [this.map.landscape, this.map.props], 0, 0);
         this.exitLayer = this.map.createStaticLayer('exit', [this.map.landscape, this.map.props], 0, 0);
-       
+
         this.map.getObjectLayer('objects').objects.forEach(function (object) {
             object = this.retrieveCustomProperties(object);
             if (object.type === "playerSpawner") {
                 this.createPlayer(object);
             } else if (object.type === "pickup") {
                 this.createGem(object);
-            } else if(object.type === "enemySpawner") {
+            } else if (object.type === "enemySpawner") {
                 this.createSkull(object);
             }
         }, this);
@@ -54,6 +54,8 @@ class BaseScene extends Phaser.Scene {
 
         //Enable cursors
         this.cursors = this.input.keyboard.createCursorKeys();
+
+        this.physics.add.overlap(this.player, this.gems, this.collectGems, null, this);
     }
 
     update() {
@@ -120,24 +122,25 @@ class BaseScene extends Phaser.Scene {
     }
 
     retrieveCustomProperties(object) {
-        if(object.properties) { //Check if the object has custom properties
-            if(Array.isArray(object.properties)) { //Check if from Tiled v1.3 and above
-                object.properties.forEach(function(element){ //Loop through each property
+        if (object.properties) { //Check if the object has custom properties
+            if (Array.isArray(object.properties)) { //Check if from Tiled v1.3 and above
+                object.properties.forEach(function (element) { //Loop through each property
                     this[element.name] = element.value; //Create the property in the object
                 }, object); //Assign the word "this" to refer to the object
             } else {  //Check if from Tiled v1.2.5 and below
-                for(var propName in object.properties) { //Loop through each property
+                for (var propName in object.properties) { //Loop through each property
                     object[propName] = object.properties[propName]; //Create the property in the object
                 }
             }
-    
+
             delete object.properties; //Delete the custom properties array from the object
         }
-    
+
         return object; //Return the new object w/ custom properties
     }
 }
 class SceneA extends BaseScene {
+    gemsCollected;
     constructor() {
         super('sceneA');
     }
@@ -160,23 +163,35 @@ class SceneA extends BaseScene {
         });
         super.create();
     }
+
+    collectGems(player, gem) {
+        gem.disableBody(true, true);
+        if (this.gems.countActive(true) === 0) {
+            console.log("all gems collected")
+            this.gemsCollected = true
+        }
+    }
     update() {
         super.update();
         let tile = this.exitLayer.getTileAtWorldXY(this.player.x, this.player.y);
         if (tile) {
             switch (tile.index) {
-                case 200:
-                case 201:
-                case 206:
-                case 207:
+                case 11:
+                case 12:
+                case 27:
+                case 28:
                     this.processExit();
                     break;
+
             }
         }
+
     }
     processExit() {
-        console.log('player reached exit');
-        this.scene.start('sceneB', { score: this.score });
+        if (this.gemsCollected){
+        this.scene.start('sceneB', { score: this.score });    
+        }
+        
     }
 }
 class SceneB extends BaseScene {
