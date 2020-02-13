@@ -7,6 +7,7 @@ class BaseScene extends Phaser.Scene {
     score;
     gems;
     skulls;
+    gameOver = false;
 
     constructor(key) {
         super(key);
@@ -37,7 +38,8 @@ class BaseScene extends Phaser.Scene {
                 this.createSkull(object);
             }
         }, this);
-        //Create player
+        //Create player 
+
         //this.createPlayer();
 
         //Create foreground layers
@@ -56,33 +58,35 @@ class BaseScene extends Phaser.Scene {
         this.cursors = this.input.keyboard.createCursorKeys();
 
         this.physics.add.overlap(this.player, this.gems, this.collectGems, null, this);
+        this.physics.add.overlap(this.player, this.skulls, this.endGame, null, this);
     }
-
-    update() {
-        //Check arrow keys
-        if (this.cursors.right.isDown) {
-            this.player.setVelocityX(100);
-            this.player.flipX = false;
-        } else if (this.cursors.left.isDown) {
-            this.player.setVelocityX(-100);
-            this.player.flipX = true;
-        } else {
-            this.player.setVelocityX(0);
-        }
-
-        //Check for space bar press
-        if (Phaser.Input.Keyboard.JustDown(this.cursors.space)) {
-            this.player.setVelocityY(-200);
-        }
-
-
-    }
-
     createPlayer(object) {
         //Add sprite to world
         this.player = this.physics.add.sprite(object.x, object.y, 'player', 1);
         this.player.setCollideWorldBounds(true);
+
     }
+    update() {
+        //Check arrow keys
+        if (!this.gameOver) {
+            if (this.cursors.right.isDown) {
+                this.player.setVelocityX(100);
+                this.player.flipX = false;
+            } else if (this.cursors.left.isDown) {
+                this.player.setVelocityX(-100);
+                this.player.flipX = true;
+            } else {
+                this.player.setVelocityX(0);
+            }
+
+            //Check for space bar press
+            if (Phaser.Input.Keyboard.JustDown(this.cursors.space)) {
+                this.player.setVelocityY(-200);
+            }
+        }
+    }
+
+
 
     createGem(object) {
         this.gems.create(object.x, object.y, 'gem');
@@ -91,7 +95,8 @@ class BaseScene extends Phaser.Scene {
     createSkull(object) {
         let origin = {
             x: object.x,
-            y: object.y + object.height / 2
+            y: object.y + object.height / 2,
+
         };
         let dest = {
             x: object.x + object.width,
@@ -99,12 +104,11 @@ class BaseScene extends Phaser.Scene {
         };
 
         let line = new Phaser.Curves.Line(origin, dest);
-        let skull = this.add.follower(line, origin.x, origin.y, object.sprite);
+        let skull = this.add.follower(line, origin.x, origin.y, 'skull');
         this.physics.add.existing(skull);
         this.skulls.add(skull);
-
         skull.startFollow({
-            duration: 1000,
+            duration: 4000,
             repeat: -1,
             yoyo: true,
             ease: 'Sine.easeInOut'
@@ -116,10 +120,13 @@ class BaseScene extends Phaser.Scene {
         let collisionLayer = this.map.getLayer('platforms').tilemapLayer;
         collisionLayer.setCollisionBetween(0, 1000);
         //Enable collision between player and "platforms" layer
-        this.physics.add.collider(this.player, collisionLayer);
+        if (!this.gameOver) {
+            this.physics.add.collider(this.player, collisionLayer);
+        }
         this.physics.add.collider(this.skulls, collisionLayer);
 
     }
+
 
     retrieveCustomProperties(object) {
         if (object.properties) { //Check if the object has custom properties
@@ -138,7 +145,15 @@ class BaseScene extends Phaser.Scene {
 
         return object; //Return the new object w/ custom properties
     }
+
+    endGame() {
+        this.physics.pause();
+        this.player.setTint(0xff0000);
+        this.player.anims.play('turn');
+        this.gameOver = true;
+    }
 }
+
 class SceneA extends BaseScene {
     gemsCollected;
     constructor() {
@@ -188,10 +203,10 @@ class SceneA extends BaseScene {
 
     }
     processExit() {
-        if (this.gemsCollected){
-        this.scene.start('sceneB', { score: this.score });    
+        if (this.gemsCollected) {
+            this.scene.start('sceneB', { score: this.score });
         }
-        
+
     }
 }
 class SceneB extends BaseScene {
@@ -202,13 +217,6 @@ class SceneB extends BaseScene {
         this.score = data.score;
     }
     preload() {
-        //Load assets
-        this.load.image('landscape-image', '../assets/castle_tileset_part1_Padded.png');
-        this.load.image('props-image', '../assets/castle_tileset_part2_Padded.png');
-        this.load.spritesheet('player', '../assets/player.png', {
-            frameWidth: 24,
-            frameHeight: 24
-        });
         //Load Tiled JSON
         this.load.tilemapTiledJSON('level2', '../assets/level2.json');
     }
@@ -216,6 +224,57 @@ class SceneB extends BaseScene {
         console.log('this.score = ' + this.score);
         this.map = this.make.tilemap({
             key: 'level2'
+        });
+        super.create();
+    }
+
+    collectGems(player, gem) {
+        gem.disableBody(true, true);
+        if (this.gems.countActive(true) === 0) {
+            console.log("all gems collected")
+            this.gemsCollected = true
+        }
+    }
+    update() {
+        super.update();
+        let tile = this.exitLayer.getTileAtWorldXY(this.player.x, this.player.y);
+        if (tile) {
+            switch (tile.index) {
+                case 11:
+                case 12:
+                case 27:
+                case 28:
+                    this.processExit();
+                    break;
+
+            }
+        }
+
+    }
+    processExit() {
+        if (this.gemsCollected) {
+            console.log("Game completed!")
+            this.scene.start('sceneC', { score: this.score });
+
+        }
+
+    }
+}
+class SceneC extends BaseScene {
+    constructor() {
+        super('sceneC');
+    }
+    init(data) {
+        this.score = data.score;
+    }
+    preload() {
+        //Load Tiled JSON
+        this.load.tilemapTiledJSON('level3', '../assets/level3.json');
+    }
+    create() {
+        console.log('this.score = ' + this.score);
+        this.map = this.make.tilemap({
+            key: 'level3'
         });
         super.create();
     }
